@@ -1,0 +1,13 @@
+[Unit]
+Description=Hotkey-työkalut (autoclicker, DPI-vaihto, Alt+F4-pakkosulku)
+Documentation=file:%h/Documents/Hotkey/README.md
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@@DEST@@/start_all.sh
+ExecStop=@@DEST@@/stop_all.sh
+
+[Install]
+WantedBy=default.target

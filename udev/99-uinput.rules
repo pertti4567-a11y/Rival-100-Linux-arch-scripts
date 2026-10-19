@@ -1,0 +1,2 @@
+# /dev/uinput antaa oikeudet luoda virtuaalisen hiiren (autoclicker).
+KERNEL=="uinput", GROUP="input", MODE="0660"
