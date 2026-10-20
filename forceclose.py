@@ -24,6 +24,7 @@ Vinkki: jos haluat, että tavallinen ikkuna EI sulkeudu Alt+F4:llä samalla,
 poista/ohita Hyprlandin oma Alt+F4-sidonta (hyprctl binds | grep -i f4).
 """
 
+import os
 import subprocess
 import threading
 from evdev import InputDevice, ecodes, list_devices
@@ -54,6 +55,31 @@ pressed_lock = threading.Lock()
 ALT_KEYS = {ecodes.KEY_LEFTALT, ecodes.KEY_RIGHTALT}
 
 
+def hypr_env():
+    """Käynnissä olevan Hyprland-instanssin ympäristö.
+
+    Tämä skripti käynnistyy systemd-palvelusta, joka ei peri
+    HYPRLAND_INSTANCE_SIGNATURE-muuttujaa. Etsitään aktiivinen instanssi
+    $XDG_RUNTIME_DIR/hypr/-hakemistosta, jotta hyprctl toimii sielläkin.
+    """
+    env = dict(os.environ)
+    if env.get("HYPRLAND_INSTANCE_SIGNATURE"):
+        return env
+    hypr_dir = os.path.join(env.get("XDG_RUNTIME_DIR", "/run/user/1000"), "hypr")
+    try:
+        candidates = [d for d in os.listdir(hypr_dir)
+                      if any(os.path.exists(os.path.join(hypr_dir, d, s))
+                             for s in (".socket2.sock", ".socket.2"))]
+    except OSError:
+        candidates = []
+    if candidates:
+        # Uusin instanssi (useammalla sessiolla/monitorilla useampi)
+        newest = max(candidates,
+                     key=lambda d: os.path.getmtime(os.path.join(hypr_dir, d)))
+        env["HYPRLAND_INSTANCE_SIGNATURE"] = newest
+    return env
+
+
 def force_close():
     if ACTIVE_WINDOW:
         try:
@@ -61,8 +87,10 @@ def force_close():
             raw = subprocess.run(
                 ["hyprctl", "-j", "activewindow"],
                 capture_output=True, text=True, timeout=3,
+                env=hypr_env(),
             ).stdout
-            pid = int(json.loads(raw).get("pid") or 0)
+            data = json.loads(raw) if raw.strip() else {}
+            pid = int(data.get("pid") or 0)
             if pid:
                 subprocess.run(["kill", "-9", str(pid)], check=True)
                 print(f"[forceclose] Suljettu aktiivinen ikkuna, pid={pid}", flush=True)
